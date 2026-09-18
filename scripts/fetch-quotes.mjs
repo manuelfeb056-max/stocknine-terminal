@@ -51,8 +51,11 @@ async function nasdaq(sym) {
 }
 
 async function underlying(sym) {
-  try { return await yahoo(sym); }
-  catch (e) { console.error(sym, "yahoo failed:", e.message, "-> nasdaq fallback"); }
+  // Yahoo with one retry (Actions runners get transient 429s); Nasdaq fallback has no candles.
+  for (let i = 0; i < 2; i++) {
+    try { return await yahoo(sym); }
+    catch (e) { console.error(sym, "yahoo failed:", e.message, i ? "-> nasdaq fallback" : "-> retry"); await new Promise((r) => setTimeout(r, 3000)); }
+  }
   return await nasdaq(sym);
 }
 
@@ -79,6 +82,12 @@ for (const [sym, ysym, mint] of ASSETS) {
     entry.underlying = await underlying(ysym);
     console.log(sym, "underlying ok:", entry.underlying.price, `(${entry.underlying.source})`);
   } catch (e) { console.error(sym, "underlying failed:", e.message); entry.underlying = prior[sym]?.underlying ?? null; }
+  // never poison the candle history: keep prior candles when the fresh read has none (nasdaq fallback)
+  const pc = prior[sym]?.underlying?.candles;
+  if (entry.underlying && (!entry.underlying.candles || entry.underlying.candles.length === 0) && Array.isArray(pc) && pc.length) {
+    entry.underlying.candles = pc;
+    console.log(sym, "kept prior candles:", pc.length);
+  }
   const p = jpx[mint]?.usdPrice;
   const hist = Array.isArray(prior[sym]?.xstockHistory) ? prior[sym].xstockHistory.slice(-HIST_MAX + 1) : [];
   if (p) hist.push({ t: out._updated, p });
