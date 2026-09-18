@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>STOCKNINE — 24/7 Tokenized Stocks Terminal</title>
+  <meta name="description" content="STOCKNINE: trade tokenized stocks 24/7 on Solana. Live xStock prices, underlying-vs-token parity, paper trading." />
+  <script type="module" crossorigin src="./assets/index-7GxdkSgJ.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-BpJmHjXR.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">9</div>
+      <div>
+        <div class="brand-name">STOCKNINE</div>
+        <div class="brand-sub">tokenized stocks terminal · solana</div>
+      </div>
+    </div>
+    <div class="top-mid">
+      <span id="mktDot" class="dot closed"></span><span id="mktTxt">—</span>
+      <span class="sep">·</span><span id="clock">—</span>
+      <span class="sep">·</span><span id="dataAge" class="muted">loading…</span>
+    </div>
+    <div class="top-right">
+      <span class="badge paper">PAPER TRADING</span>
+      <button id="refreshBtn" class="btn ghost">↻ refresh</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <div class="side-title">WATCHLIST</div>
+      <div id="assetList"></div>
+      <div class="side-note">Underlying prices mirrored every 5 min (GH Action). xStock prices live on-chain via Jupiter.</div>
+    </aside>
+
+    <section class="center">
+      <div class="panel chart-panel">
+        <div class="panel-head"><span id="chartTitle">—</span><span class="legend"><i class="sw u"></i>underlying <i class="sw x"></i>xStock</span></div>
+        <div id="chart"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">UNDERLYING vs xSTOCK PARITY <span id="cmpSrc" class="muted"></span></div>
+        <div class="cmp-grid">
+          <div class="cmp-box">
+            <div class="cmp-label">UNDERLYING <span id="cmpFeedU" class="feed"></span></div>
+            <div id="cmpU" class="cmp-val">—</div>
+            <div id="cmpFeedUid" class="feed-id"></div>
+          </div>
+          <div class="cmp-box">
+            <div class="cmp-label">xSTOCK ON-CHAIN <span id="cmpFeedX" class="feed"></span></div>
+            <div id="cmpX" class="cmp-val violet">—</div>
+            <div id="cmpFeedXid" class="feed-id"></div>
+          </div>
+          <div class="cmp-box">
+            <div class="cmp-label">BASIS (xSTOCK − UNDERLYING)</div>
+            <div id="cmpSpread" class="cmp-val">—</div>
+            <div class="feed-id">arbitrage window · 24/7</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cols">
+        <div class="panel">
+          <div class="panel-head">TRADE · <span id="tradeSym">—</span> <span class="muted">@ <span id="tradePx">—</span></span></div>
+          <div class="trade-box">
+            <div class="t-row"><span>Position</span><b id="posInfo">—</b></div>
+            <div class="t-row"><span>Paper cash</span><b id="cashInfo">—</b></div>
+            <input id="tradeAmt" type="number" min="1" step="1" value="1000" placeholder="USD amount" />
+            <div class="t-btns">
+              <button id="buyBtn" class="btn buy">BUY</button>
+              <button id="sellBtn" class="btn sell">SELL</button>
+            </div>
+            <div class="muted small">Market orders at live xStock price. Simulated — no real funds move.</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">PORTFOLIO <button id="resetBtn" class="btn ghost small">reset $100k</button></div>
+          <div class="pf-stats">
+            <div><div class="muted small">Equity</div><div id="pfVal" class="pf-big">—</div></div>
+            <div><div class="muted small">P&amp;L</div><div id="pfPnl" class="pf-pnl">—</div></div>
+            <div><div class="muted small">Cash</div><div id="pfCash" class="pf-big">—</div></div>
+          </div>
+          <table class="tbl"><thead><tr><th>Asset</th><th>Qty</th><th>Avg</th><th>Price</th><th>Value</th><th>uP&amp;L</th></tr></thead><tbody id="posBody"></tbody></table>
+          <div class="panel-head" style="margin-top:14px">TRADE HISTORY</div>
+          <table class="tbl"><thead><tr><th>Time</th><th>Side</th><th>Asset</th><th>Qty</th><th>Price</th><th>rP&amp;L</th></tr></thead><tbody id="tradeBody"></tbody></table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>STOCKNINE · built for STOCKLANA (Solana Foundation) · data: Yahoo mirror + Jupiter on-chain · Pyth feed IDs shown per asset · paper trading only — not financial advice</span>
+  </footer>
+
+</body>
+</html>
