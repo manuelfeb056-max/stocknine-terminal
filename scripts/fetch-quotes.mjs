@@ -1,10 +1,11 @@
-// Fetches underlying equity candles via Yahoo Finance + xStock prices via Jupiter,
-// writes public/data/quotes.json (and docs/data/quotes.json for the live site).
-// Run: node scripts/fetch-data.mjs [--out dir]
-import { writeFileSync, mkdirSync } from "fs";
+// Fetches underlying equity prices via Yahoo (fallback: Nasdaq API) + xStock prices via Jupiter,
+// accumulates on-chain xStock price history, writes public/data/quotes.json (and docs/data for the live site).
+// Run: node scripts/fetch-quotes.mjs [--out dir]
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
 
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36";
 const OUTS = process.argv.includes("--out") ? [process.argv[process.argv.indexOf("--out") + 1]] : ["public/data", "docs/data"];
+const HIST_MAX = 288; // 24h at 5-min cadence
 
 const ASSETS = [
   ["AAPL", "AAPL", "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"],
@@ -17,8 +18,8 @@ const ASSETS = [
   ["SPY", "SPY", "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W"],
 ];
 
-async function jget(url) {
-  const r = await fetch(url, { headers: { "User-Agent": UA } });
+async function jget(url, headers = {}) {
+  const r = await fetch(url, { headers: { "User-Agent": UA, ...headers } });
   if (!r.ok) throw new Error(`${url} -> ${r.status}`);
   return r.json();
 }
@@ -35,12 +36,24 @@ async function yahoo(sym) {
   const m = res.meta;
   const price = m.regularMarketPrice;
   const prev = m.chartPreviousClose ?? m.previousClose;
-  return {
-    price, prevClose: prev,
-    changePct: prev ? ((price - prev) / prev) * 100 : null,
-    candles: candles.slice(-400),
-    source: "yahoo",
-  };
+  return { price, prevClose: prev, changePct: prev ? ((price - prev) / prev) * 100 : null, candles: candles.slice(-400), source: "yahoo" };
+}
+
+const num = (s) => parseFloat(String(s).replace(/[$,%]/g, ""));
+async function nasdaq(sym) {
+  const d = await jget(`https://api.nasdaq.com/api/quote/${sym}/info?assetclass=stocks`, { Accept: "application/json" });
+  const p = d.data?.primaryData;
+  if (!p?.lastSalePrice) throw new Error("no primaryData");
+  const price = num(p.lastSalePrice);
+  const change = num(p.netChange);
+  const prevClose = price - change;
+  return { price, prevClose, changePct: prevClose ? (change / prevClose) * 100 : null, candles: [], source: "nasdaq" };
+}
+
+async function underlying(sym) {
+  try { return await yahoo(sym); }
+  catch (e) { console.error(sym, "yahoo failed:", e.message, "-> nasdaq fallback"); }
+  return await nasdaq(sym);
 }
 
 async function jupiter(mints) {
@@ -48,7 +61,14 @@ async function jupiter(mints) {
   return d;
 }
 
-const out = { _updated: Math.floor(Date.now() / 1000), _note: "STOCKNINE oracle mirror: yahoo 5m candles + jupiter on-chain xStock prices" };
+// load prior run to keep price history
+let prior = {};
+for (const dir of OUTS) {
+  const f = `${dir}/quotes.json`;
+  if (existsSync(f)) { try { prior = JSON.parse(readFileSync(f, "utf8")); break; } catch {} }
+}
+
+const out = { _updated: Math.floor(Date.now() / 1000), _note: "STOCKNINE oracle mirror: yahoo/nasdaq underlying + jupiter on-chain xStock prices + xstock history" };
 const mints = ASSETS.map((a) => a[2]);
 let jpx = {};
 try { jpx = await jupiter(mints); } catch (e) { console.error("jupiter failed:", e.message); }
@@ -56,14 +76,17 @@ try { jpx = await jupiter(mints); } catch (e) { console.error("jupiter failed:",
 for (const [sym, ysym, mint] of ASSETS) {
   const entry = {};
   try {
-    entry.underlying = await yahoo(ysym);
-    console.log(sym, "yahoo ok:", entry.underlying.price, `(${entry.underlying.candles.length} candles)`);
-  } catch (e) { console.error(sym, "yahoo failed:", e.message); entry.underlying = null; }
+    entry.underlying = await underlying(ysym);
+    console.log(sym, "underlying ok:", entry.underlying.price, `(${entry.underlying.source})`);
+  } catch (e) { console.error(sym, "underlying failed:", e.message); entry.underlying = prior[sym]?.underlying ?? null; }
   const p = jpx[mint]?.usdPrice;
+  const hist = Array.isArray(prior[sym]?.xstockHistory) ? prior[sym].xstockHistory.slice(-HIST_MAX + 1) : [];
+  if (p) hist.push({ t: out._updated, p });
   entry.xstock = p ? { price: p, source: "jupiter-onchain" } : null;
-  console.log(sym, "xstock:", p ?? "n/a");
+  entry.xstockHistory = hist;
+  console.log(sym, "xstock:", p ?? "n/a", `hist ${hist.length}`);
   out[sym] = entry;
-  await new Promise((r) => setTimeout(r, 400)); // be gentle
+  await new Promise((r) => setTimeout(r, 400));
 }
 
 for (const dir of OUTS) {
