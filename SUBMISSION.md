@@ -13,7 +13,7 @@ A trading terminal that treats every listed equity and its Solana token as two s
 ## Links
 - Live app: https://manuelfeb056-max.github.io/stocknine-terminal/
 - Repo: https://github.com/manuelfeb056-max/stocknine-terminal
-- Demo video: https://files.catbox.moe/7930fl.mp4 (also in repo: docs/demo.mp4)
+- Demo video: https://files.catbox.moe/ebh7l6.mp4 (also in repo: docs/demo.mp4)
 
 ## Description
 STOCKNINE is a Bloomberg-style terminal for tokenized stocks on Solana, built for STOCKLANA's brief: *make stocks on Solana better than a traditional brokerage account.*
