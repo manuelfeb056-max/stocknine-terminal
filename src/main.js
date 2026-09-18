@@ -1,5 +1,7 @@
 import { createChart, CandlestickSeries, LineSeries } from "lightweight-charts";
-import { ASSETS, JUP_PRICE_API, DATA_URL, STARTING_CASH, LS_KEY } from "./config.js";
+import { ASSETS, JUP_PRICE_API, DATA_URL, STARTING_CASH, LS_KEY, PREIPO } from "./config.js";
+import { fetchPyth, fmtAge } from "./pyth.js";
+import { fetchMeteora } from "./meteora.js";
 import "./styles.css";
 
 const $ = (s) => document.querySelector(s);
@@ -11,6 +13,8 @@ const cls = (n) => n == null ? "" : n >= 0 ? "pos" : "neg";
 let quotes = {};            // from data/quotes.json
 let liveX = {};             // live xStock prices from Jupiter
 let sparkX = {};            // per-asset recent xStock ticks (for sparkline)
+let pyth = {};              // on-chain Pyth quotes: { SYM: { u, x } }
+let meteora = {};           // DLMM liquidity per asset
 let active = "AAPL";
 let chart, candleSeries, xLineSeries;
 
@@ -94,7 +98,7 @@ function renderList() {
       <div class="a-top"><span class="a-sym">${a.sym}</span><span class="a-px">${fmt$(px)}</span></div>
       <div class="a-sub"><span class="a-name">${a.name}</span><span class="a-chg ${cls(chg)}">${fmtPct(chg)}</span></div>
       <div class="a-x">xStock <b>${fmt$(xp, 4)}</b></div>`;
-    row.onclick = () => { active = a.sym; renderList(); renderAll(); };
+    row.onclick = () => { active = a.sym; renderList(); renderAll(); renderMeteora(); };
     el.appendChild(row);
   }
 }
@@ -153,6 +157,70 @@ function renderCompare() {
   const src = q?.underlying?.source || "mirror";
   const upd = quotes._updated ? new Date(quotes._updated * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "";
   $("#cmpSrc").textContent = `underlying: ${src} · xStock: jupiter on-chain · mirror ${upd}`;
+
+  // Pyth on-chain rows
+  const pq = pyth[active] || {};
+  const pu = pq.u, px2 = pq.x;
+  $("#pythU").textContent = pu ? fmt$(pu.price, 4) + " ±" + fmt$(pu.conf, 4) : "—";
+  $("#pythUage").textContent = pu ? fmtAge(pu.ageSec) : "";
+  $("#pythX").textContent = px2 ? fmt$(px2.price, 4) + " ±" + fmt$(px2.conf, 4) : "—";
+  $("#pythXage").textContent = px2 ? fmtAge(px2.ageSec) : "";
+  const pb = x && px2 ? x - px2.price : null;
+  const pbps = px2 && pb != null ? (pb / px2.price) * 10000 : null;
+  const pbEl = $("#pythBasis");
+  pbEl.textContent = pb == null ? "—" : `${pb >= 0 ? "+" : ""}${fmt$(pb, 4)} · ${pbps >= 0 ? "+" : ""}${pbps.toFixed(1)} bps`;
+  pbEl.className = "cmp-val small " + cls(pb);
+}
+
+// ---------- meteora ----------
+const fmtK = (n) => n == null || isNaN(n) ? "—" : n >= 1e6 ? "$" + (n / 1e6).toFixed(2) + "M" : n >= 1e3 ? "$" + (n / 1e3).toFixed(1) + "K" : "$" + n.toFixed(0);
+
+function renderMeteora() {
+  const m = meteora[active];
+  $("#metSym").textContent = active + "x";
+  if (!m) {
+    $("#metPool").textContent = "—"; $("#metAddr").textContent = "loading…";
+    $("#metTvl").textContent = "—"; $("#metPools").textContent = "";
+    $("#metApy").textContent = "—"; $("#metVol").textContent = "—"; $("#metFees").textContent = "";
+    $("#metLink").href = "#";
+    return;
+  }
+  $("#metPool").textContent = m.name + " / " + m.quote;
+  $("#metAddr").textContent = m.address.slice(0, 8) + "…" + m.address.slice(-4);
+  $("#metTvl").textContent = fmtK(m.tvl);
+  $("#metPools").textContent = m.poolsFound > 1 ? `top pool · ${m.poolsFound} pools · ${fmtK(m.totalTvl)} combined` : "top pool by TVL";
+  const apy = m.apy != null ? m.apy : m.apr;
+  $("#metApy").textContent = apy != null ? apy.toFixed(2) + "%" : "—";
+  $("#metVol").textContent = fmtK(m.vol24h);
+  $("#metFees").textContent = m.fees24h != null ? "fees 24h " + fmtK(m.fees24h) : "";
+  $("#metLink").href = "https://app.meteora.ag/dlmm/" + m.address;
+}
+
+// ---------- pre-ipo ----------
+function renderPreipo() {
+  const tb = $("#preBody");
+  tb.innerHTML = "";
+  for (const p of PREIPO) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td><b>${p.sym}</b></td><td>${p.name}</td><td>${p.note}</td>
+      <td><span class="tag-watch">watchlist</span></td>`;
+    tb.appendChild(tr);
+  }
+}
+
+// ---------- data: pyth + meteora ----------
+async function refreshPyth() {
+  try {
+    pyth = await fetchPyth();
+    renderCompare();
+  } catch {}
+}
+
+async function refreshMeteora() {
+  try {
+    meteora = await fetchMeteora();
+    renderMeteora();
+  } catch {}
 }
 
 // ---------- trading ----------
@@ -244,6 +312,16 @@ function renderHeader() {
 
 function renderAll() { renderChart(); renderCompare(); renderTradePanel(); }
 
+// ---------- tabs ----------
+function switchTab(which) {
+  const term = which === "terminal";
+  $("#viewTerminal").classList.toggle("hidden", !term);
+  $("#viewPreipo").classList.toggle("hidden", term);
+  $("#tabTerminal").classList.toggle("active", term);
+  $("#tabPreipo").classList.toggle("active", !term);
+  if (term) renderAll();
+}
+
 // ---------- init ----------
 async function init() {
   buildChart();
@@ -255,12 +333,18 @@ async function init() {
       savePF(); renderPortfolio(); renderTradePanel();
     }
   };
-  $("#refreshBtn").onclick = async () => { await loadQuotes(); await refreshLiveX(); renderAll(); };
+  $("#refreshBtn").onclick = async () => { await loadQuotes(); await refreshLiveX(); await refreshPyth(); await refreshMeteora(); renderAll(); };
+  $("#tabTerminal").onclick = () => switchTab("terminal");
+  $("#tabPreipo").onclick = () => switchTab("preipo");
+  renderPreipo();
   renderHeader(); setInterval(renderHeader, 1000);
   await loadQuotes();
-  renderList(); renderAll(); renderPortfolio();
+  renderList(); renderAll(); renderPortfolio(); renderMeteora();
   await refreshLiveX();
+  refreshPyth(); refreshMeteora();
   setInterval(refreshLiveX, 20000);
+  setInterval(refreshPyth, 60000);
+  setInterval(refreshMeteora, 300000);
   setInterval(async () => { await loadQuotes(); renderList(); renderAll(); }, 120000);
   window.addEventListener("resize", () => renderAll());
 }

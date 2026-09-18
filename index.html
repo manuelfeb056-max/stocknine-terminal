@@ -30,10 +30,16 @@
     <aside class="sidebar">
       <div class="side-title">WATCHLIST</div>
       <div id="assetList"></div>
-      <div class="side-note">Underlying prices mirrored every 5 min (GH Action). xStock prices live on-chain via Jupiter.</div>
+      <div class="side-note">Underlying prices mirrored every 5 min (GH Action). xStock prices live on-chain via Jupiter. Pyth quotes read straight from Solana price-feed accounts.</div>
     </aside>
 
     <section class="center">
+      <div class="tabs">
+        <button id="tabTerminal" class="tab active">TERMINAL</button>
+        <button id="tabPreipo" class="tab">PRE-IPO · PreStocks</button>
+      </div>
+
+      <div id="viewTerminal">
       <div class="panel chart-panel">
         <div class="panel-head"><span id="chartTitle">—</span><span class="legend"><i class="sw u"></i>underlying <i class="sw x"></i>xStock</span></div>
         <div id="chart"></div>
@@ -46,18 +52,33 @@
             <div class="cmp-label">UNDERLYING <span id="cmpFeedU" class="feed"></span></div>
             <div id="cmpU" class="cmp-val">—</div>
             <div id="cmpFeedUid" class="feed-id"></div>
+            <div class="pyth-row"><span class="pyth-tag">PYTH</span><span id="pythU" class="cmp-val small">—</span><span id="pythUage" class="age"></span></div>
           </div>
           <div class="cmp-box">
             <div class="cmp-label">xSTOCK ON-CHAIN <span id="cmpFeedX" class="feed"></span></div>
             <div id="cmpX" class="cmp-val violet">—</div>
             <div id="cmpFeedXid" class="feed-id"></div>
+            <div class="pyth-row"><span class="pyth-tag">PYTH</span><span id="pythX" class="cmp-val small">—</span><span id="pythXage" class="age"></span></div>
           </div>
           <div class="cmp-box">
             <div class="cmp-label">BASIS (xSTOCK − UNDERLYING)</div>
             <div id="cmpSpread" class="cmp-val">—</div>
             <div class="feed-id">arbitrage window · 24/7</div>
+            <div class="pyth-row"><span class="pyth-tag">PYTH</span><span id="pythBasis" class="cmp-val small">—</span><span class="age">xStock vs Pyth xStock feed</span></div>
           </div>
         </div>
+        <div class="muted small" style="margin-top:8px">Pyth quotes are read live from on-chain price-feed accounts (shard-0 PDAs, owner-verified, feed-ID checked per read). Note: Pyth's free sponsored push schedule for these feeds is currently stale — Hermes real-time now needs a Pyth Pro key; the terminal is wired to swap the source the moment a key is provided.</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">METEORA DLMM LIQUIDITY · <span id="metSym">—</span> <span class="muted">top pool by TVL</span></div>
+        <div class="met-grid">
+          <div class="met-box"><div class="cmp-label">POOL</div><div id="metPool" class="cmp-val small">—</div><div id="metAddr" class="feed-id"></div></div>
+          <div class="met-box"><div class="cmp-label">TVL</div><div id="metTvl" class="cmp-val violet">—</div><div id="metPools" class="feed-id"></div></div>
+          <div class="met-box"><div class="cmp-label">APY / APR</div><div id="metApy" class="cmp-val pos">—</div><div class="feed-id">fee APY, DLMM</div></div>
+          <div class="met-box"><div class="cmp-label">24H VOLUME</div><div id="metVol" class="cmp-val">—</div><div id="metFees" class="feed-id"></div></div>
+        </div>
+        <div class="muted small" style="margin-top:8px">Live from Meteora's public DLMM Data API. <a id="metLink" href="#" target="_blank" rel="noopener">Open pool on Meteora ↗</a></div>
       </div>
 
       <div class="cols">
@@ -86,11 +107,24 @@
           <table class="tbl"><thead><tr><th>Time</th><th>Side</th><th>Asset</th><th>Qty</th><th>Price</th><th>rP&amp;L</th></tr></thead><tbody id="tradeBody"></tbody></table>
         </div>
       </div>
+      </div><!-- /viewTerminal -->
+
+      <div id="viewPreipo" class="hidden">
+        <div class="panel">
+          <div class="panel-head">PRE-IPO · PRIVATE EQUITY ON SOLANA <span class="muted">PreStocks integration track</span></div>
+          <p class="pre-lede">PreStocks tokenizes pre-IPO exposure (SPV-backed tokens) — the segment that drove <b>~50% of Solana tokenized-asset volume</b> in the record $169M week of September 2026. STOCKNINE tracks the watchlist below; live PreStocks pricing plugs into the same parity engine as xStocks.</p>
+          <table class="tbl pre-tbl">
+            <thead><tr><th>Token</th><th>Company</th><th>Narrative</th><th>Status</th></tr></thead>
+            <tbody id="preBody"></tbody>
+          </table>
+          <div class="muted small" style="margin-top:10px">Research watchlist (Sep 2026): OPENAI ~29.5% · SPACEX ~28.1% · ANDURIL ~20.9% of PreStocks weekly volume; ANTHROPIC trading ~$1,006. Tokens are <b>not</b> affiliated with or endorsed by the underlying companies. Targets the PreStocks "Best Integration" bounty at <a href="https://hackathons.solana.com/hackathons/stocklana" target="_blank" rel="noopener">STOCKLANA ↗</a>.</div>
+        </div>
+      </div>
     </section>
   </main>
 
   <footer>
-    <span>STOCKNINE · built for STOCKLANA (Solana Foundation) · data: Yahoo mirror + Jupiter on-chain · Pyth feed IDs shown per asset · paper trading only — not financial advice</span>
+    <span>STOCKNINE · built for STOCKLANA (Solana Foundation) · data: Yahoo mirror + Jupiter on-chain + Pyth price-feed accounts + Meteora DLMM · PreStocks pre-IPO watchlist · paper trading only — not financial advice</span>
   </footer>
 
   <script type="module" src="/src/main.js"></script>
